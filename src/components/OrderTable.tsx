@@ -28,7 +28,6 @@ export default function OrderTable() {
           throw new Error('Received data is not in the expected format.')
         }
       } catch (err) {
-        // **แก้ไข:** เปลี่ยนจากการใช้ `err: any` เป็นการตรวจสอบประเภทของ Error
         if (err instanceof Error) {
           setError(err.message)
         } else {
@@ -71,6 +70,7 @@ export default function OrderTable() {
             <th className="py-3 px-4 text-left">Service</th>
             <th className="py-3 px-4 text-left">Link</th>
             <th className="py-3 px-4 text-left">Charge</th>
+            <th className="py-3 px-4 text-left">Start Count</th>
             <th className="py-3 px-4 text-left">Cost</th>
             <th className="py-3 px-4 text-left">Profit</th>
             <th className="py-3 px-4 text-left">Slip URL</th>
