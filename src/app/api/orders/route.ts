@@ -1,18 +1,18 @@
-// src/app/api/orders/route.ts
-
 import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+  
   const { data: orders, error } = await supabase
-    .from('Orders')
+    .from('orders')
     .select('*')
-    .order('created_at', { ascending: false }) // เรียงจากใหม่ไปเก่า
+    .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching orders:', error)
-    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json(orders)
