@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
   const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies() // <--- แก้ไขโดยการเพิ่ม await
   const supabase = createClient(cookieStore)
 
   const { data, error } = await supabase

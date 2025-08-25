@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
   }
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies() // <--- แก้ไขโดยการเพิ่ม await
   const supabase = createClient(cookieStore)
 
   // First, get the current order to calculate profit
