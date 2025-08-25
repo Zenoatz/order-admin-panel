@@ -1,59 +1,55 @@
-import { supabase } from '@/lib/supabaseClient';
-import { NextResponse, type NextRequest } from 'next/server';
+// src/app/api/update-order/route.ts
 
-// สร้างฟังก์ชันสำหรับจัดการคำขอแบบ POST
+import { createClient } from '@/utils/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
+
 export async function POST(request: NextRequest) {
-  try {
-    // ดึงข้อมูลที่ส่งมาจากหน้าเว็บ (Frontend)
-    const body = await request.json();
-    const { id, cost, slip_url, status, charge } = body;
+  const supabase = createClient()
+  const { id, cost, slip_url, status } = await request.json()
 
-    // ตรวจสอบว่ามี id ส่งมาหรือไม่
-    if (!id) {
-      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
-    }
-
-    // เตรียม object สำหรับเก็บข้อมูลที่จะอัปเดต
-    const updateData: { [key: string]: any } = {};
-
-    if (cost !== undefined) {
-      updateData.cost = cost;
-      // คำนวณกำไร ถ้ามีต้นทุนและราคาขายส่งมา
-      if (charge !== undefined) {
-        updateData.profit = parseFloat(charge) - parseFloat(cost);
-      }
-    }
-    if (slip_url !== undefined) {
-      updateData.slip_url = slip_url;
-    }
-    if (status !== undefined) {
-      updateData.status = status;
-    }
-
-    // หากไม่มีข้อมูลให้อัปเดตเลย
-    if (Object.keys(updateData).length === 0) {
-        return NextResponse.json({ error: 'No data to update' }, { status: 400 });
-    }
-
-    // อัปเดตข้อมูลในตาราง 'Orders' โดยอ้างอิงจาก id
-    const { data, error } = await supabase
+  // 1. คำนวณกำไรใหม่ (ถ้ามีการส่ง cost มา)
+  let profit = undefined
+  if (typeof cost === 'number') {
+    // ดึงข้อมูล charge (ราคาขาย) ของออเดอร์นี้มาก่อน
+    const { data: orderData, error: fetchError } = await supabase
       .from('Orders')
-      .update(updateData)
-      .eq('id', id) // .eq('id', id) หมายถึง "ที่ซึ่งคอลัมน์ id มีค่าเท่ากับ id ที่ส่งมา"
-      .select() // .select() เพื่อให้ Supabase คืนค่าข้อมูลที่อัปเดตแล้วกลับมา
-      .single(); // .single() เพื่อให้คืนค่าแค่ object เดียว
+      .select('charge')
+      .eq('id', id)
+      .single()
 
-    // หากเกิดข้อผิดพลาด
-    if (error) {
-      console.error('Error updating order:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (fetchError || !orderData) {
+      console.error('Error fetching order for profit calculation:', fetchError)
+      return NextResponse.json({ error: 'Could not find order to calculate profit' }, { status: 404 })
     }
 
-    // หากสำเร็จ ส่งข้อมูลที่อัปเดตแล้วกลับไป
-    return NextResponse.json(data);
-
-  } catch (err) {
-    console.error('An unexpected error occurred:', err);
-    return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
+    profit = orderData.charge - cost
   }
+
+  // 2. สร้าง object สำหรับอัปเดตข้อมูล
+  const updateData: {
+    cost?: number
+    slip_url?: string
+    status?: string
+    profit?: number
+  } = {}
+
+  if (cost !== undefined) updateData.cost = cost
+  if (slip_url !== undefined) updateData.slip_url = slip_url
+  if (status !== undefined) updateData.status = status
+  if (profit !== undefined) updateData.profit = profit
+
+  // 3. อัปเดตข้อมูลกลับไปที่ Supabase
+  const { data, error } = await supabase
+    .from('Orders')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating order:', error)
+    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
+  }
+
+  return NextResponse.json(data)
 }
