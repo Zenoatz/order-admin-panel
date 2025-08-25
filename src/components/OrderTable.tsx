@@ -1,44 +1,54 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from 'react';
-import OrderRow from './OrderRow';
-import { Order } from '@/types'; // นำเข้า Order type ที่เราสร้างไว้
+import { useState, useEffect } from 'react'
+import OrderRow from './OrderRow'
+import { Order } from '@/types'
 
 export default function OrderTable() {
-  const [orders, setOrders] = useState<Order[]>([]); // ระบุ Type ของ state
-  const [isLoading, setIsLoading] = useState(true);
+  // 1. สร้าง "กล่อง" สำหรับเก็บข้อมูลออเดอร์, สถานะการโหลด, และข้อผิดพลาด
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
+  // 2. useEffect จะทำงานแค่ครั้งเดียวตอนที่หน้าเว็บโหลดเสร็จ
   useEffect(() => {
+    // 3. สร้างฟังก์ชันสำหรับไป "เบิกของ" (Fetch Data) จาก API
     const fetchOrders = async () => {
-      setIsLoading(true);
       try {
-        const response = await fetch('/api/orders');
-        const data: Order[] = await response.json(); // ระบุ Type ของ data
-        setOrders(data);
-      } catch (error) {
-        console.error("Failed to fetch orders:", error);
+        setLoading(true) // เริ่มโหลด -> แสดง "Loading..."
+        const response = await fetch('/api/orders')
+        if (!response.ok) {
+          throw new Error('Failed to fetch orders')
+        }
+        const data = await response.json()
+        setOrders(data) // 4. ได้ข้อมูลแล้ว -> เอาใส่กล่อง orders
+      } catch (err: any) {
+        setError(err.message) // 5. ถ้ามีปัญหา -> เก็บข้อความ Error ไว้
       } finally {
-        setIsLoading(false);
+        setLoading(false) // 6. ไม่ว่าจะสำเร็จหรือล้มเหลว -> หยุดโหลด
       }
-    };
-    fetchOrders();
-  }, []);
+    }
 
-  const handleUpdateOrder = (updatedOrder: Order) => {
-    setOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === updatedOrder.id ? updatedOrder : order
-      )
-    );
-  };
+    fetchOrders() // สั่งให้ฟังก์ชันเริ่มทำงาน
+  }, []) // dependency array ว่าง หมายถึงให้ทำงานแค่ครั้งเดียว
 
-  if (isLoading) {
-    return <p className="text-center mt-8">Loading orders...</p>;
+  // 7. ส่วนของการแสดงผลตามสถานะต่างๆ
+  if (loading) {
+    return <div className="text-center p-8">Loading orders...</div>
   }
 
+  if (error) {
+    return <div className="text-center p-8 text-red-400">Error: {error}</div>
+  }
+
+  if (orders.length === 0) {
+    return <div className="text-center p-8">No orders found.</div>
+  }
+
+  // 8. ถ้าทุกอย่างเรียบร้อย -> แสดงตารางพร้อมข้อมูล
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full bg-gray-800 border border-gray-700">
+      <table className="min-w-full bg-gray-800 text-white">
         <thead>
           <tr className="bg-gray-700">
             <th className="py-3 px-4 text-left">Order ID</th>
@@ -54,10 +64,10 @@ export default function OrderTable() {
         </thead>
         <tbody>
           {orders.map((order) => (
-            <OrderRow key={order.id} order={order} onUpdate={handleUpdateOrder} />
+            <OrderRow key={order.id} order={order} />
           ))}
         </tbody>
       </table>
     </div>
-  );
+  )
 }
