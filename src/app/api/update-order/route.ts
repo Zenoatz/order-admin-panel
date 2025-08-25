@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies() // <--- แก้ไข: เพิ่ม await ตรงนี้
   const supabase = createClient(cookieStore)
 
   // 1. ดึงข้อมูลออเดอร์เดิมเพื่อคำนวณ profit
