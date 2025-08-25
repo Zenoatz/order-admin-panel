@@ -1,3 +1,4 @@
+// src/components/OrderTable.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -5,34 +6,43 @@ import OrderRow from './OrderRow'
 import { Order } from '@/types'
 
 export default function OrderTable() {
-  // 1. สร้าง "กล่อง" สำหรับเก็บข้อมูลออเดอร์, สถานะการโหลด, และข้อผิดพลาด
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 2. useEffect จะทำงานแค่ครั้งเดียวตอนที่หน้าเว็บโหลดเสร็จ
   useEffect(() => {
-    // 3. สร้างฟังก์ชันสำหรับไป "เบิกของ" (Fetch Data) จาก API
     const fetchOrders = async () => {
       try {
-        setLoading(true) // เริ่มโหลด -> แสดง "Loading..."
+        setLoading(true)
+        setError(null) // เคลียร์ error เก่าทิ้งทุกครั้งที่เริ่มดึงข้อมูลใหม่
         const response = await fetch('/api/orders')
+        const data = await response.json() // อ่านข้อมูล JSON ออกมาก่อนเสมอ
+
+        // ตรวจสอบว่าการเรียก API สำเร็จหรือไม่ จากค่า response.ok
         if (!response.ok) {
-          throw new Error('Failed to fetch orders')
+          // ถ้าไม่สำเร็จ, 'data' ที่ได้มาน่าจะมี object { error: '...' }
+          // เราจะใช้ข้อความนั้นมาแสดงผลเพื่อบอกสาเหตุที่ชัดเจนขึ้น
+          throw new Error(data.error || 'Failed to fetch orders')
         }
-        const data = await response.json()
-        setOrders(data) // 4. ได้ข้อมูลแล้ว -> เอาใส่กล่อง orders
+
+        // ถ้าสำเร็จ, ตรวจสอบอีกชั้นเพื่อความปลอดภัยว่าข้อมูลที่ได้เป็น Array จริงๆ
+        if (Array.isArray(data)) {
+          setOrders(data)
+        } else {
+          // กรณีนี้ไม่ควรเกิดขึ้นถ้า API เราถูกต้อง แต่เป็นการป้องกันไว้ก่อน
+          throw new Error('Received data is not in the expected format.')
+        }
+
       } catch (err: any) {
-        setError(err.message) // 5. ถ้ามีปัญหา -> เก็บข้อความ Error ไว้
+        setError(err.message) // เก็บข้อความ Error ที่เกิดขึ้นไว้
       } finally {
-        setLoading(false) // 6. ไม่ว่าจะสำเร็จหรือล้มเหลว -> หยุดโหลด
+        setLoading(false) // หยุดการโหลดเสมอ ไม่ว่าจะสำเร็จหรือล้มเหลว
       }
     }
 
-    fetchOrders() // สั่งให้ฟังก์ชันเริ่มทำงาน
-  }, []) // dependency array ว่าง หมายถึงให้ทำงานแค่ครั้งเดียว
+    fetchOrders()
+  }, [])
 
-  // 7. ส่วนของการแสดงผลตามสถานะต่างๆ
   if (loading) {
     return <div className="text-center p-8">Loading orders...</div>
   }
@@ -45,7 +55,6 @@ export default function OrderTable() {
     return <div className="text-center p-8">No orders found.</div>
   }
 
-  // 8. ถ้าทุกอย่างเรียบร้อย -> แสดงตารางพร้อมข้อมูล
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full bg-gray-800 text-white">
