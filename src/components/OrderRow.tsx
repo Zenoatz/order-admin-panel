@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, ChangeEvent } from 'react'
+import { useState, ChangeEvent, useEffect } from 'react' // เพิ่ม useEffect
 import { Order } from '@/types'
 
 interface OrderRowProps {
@@ -13,7 +13,6 @@ type UpdateStatus = {
   type: 'info' | 'success' | 'error'
 } | null
 
-// รายการสถานะทั้งหมดที่สามารถเลือกได้
 const STATUS_OPTIONS = [
   'pending',
   'in_progress',
@@ -26,15 +25,20 @@ const STATUS_OPTIONS = [
 ]
 
 export default function OrderRow({ order, onUpdate }: OrderRowProps) {
-  // State สำหรับเก็บค่าในฟอร์ม
   const [startCount, setStartCount] = useState(order.start_count ?? '')
   const [cost, setCost] = useState(order.cost ?? '')
   const [slipUrl, setSlipUrl] = useState(order.slip_url || '')
   const [currentStatus, setCurrentStatus] = useState(order.status)
-
-  // State สำหรับการแสดงผล
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(null)
+
+  // --- เพิ่ม useEffect เพื่ออัปเดต State ภายในเมื่อ Prop ภายนอกเปลี่ยน ---
+  useEffect(() => {
+    setStartCount(order.start_count ?? '');
+    setCost(order.cost ?? '');
+    setSlipUrl(order.slip_url || '');
+    setCurrentStatus(order.status);
+  }, [order]); // <-- ให้โค้ดส่วนนี้ทำงานทุกครั้งที่ `order` เปลี่ยน
 
   const handleSave = async () => {
     setIsSubmitting(true)
@@ -46,7 +50,7 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
       start_count: startCount === '' ? null : Number(startCount),
       cost: cost === '' ? null : Number(cost),
       slip_url: slipUrl,
-      status: currentStatus, // ใช้สถานะจาก dropdown
+      status: currentStatus,
     }
 
     try {
@@ -61,8 +65,7 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to update order in Supabase.')
       }
-
-      // ตรวจสอบผลลัพธ์จาก Permjai
+      
       if (result.permjaiStatus.error) {
         setUpdateStatus({
           message: `DB updated, but Permjai failed: ${result.permjaiStatus.error}`,
@@ -71,7 +74,7 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
       } else {
         setUpdateStatus({ message: 'Save successful!', type: 'success' })
       }
-      onUpdate(result.data) // อัปเดต UI ด้วยข้อมูลใหม่
+      onUpdate(result.data)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'An unknown error occurred.'
@@ -85,19 +88,14 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-300'
-      case 'pending':
-        return 'bg-yellow-500/20 text-yellow-300'
+      case 'completed': return 'bg-green-500/20 text-green-300'
+      case 'pending': return 'bg-yellow-500/20 text-yellow-300'
       case 'in_progress':
-      case 'processing':
-        return 'bg-blue-500/20 text-blue-300'
+      case 'processing': return 'bg-blue-500/20 text-blue-300'
       case 'canceled':
       case 'error':
-      case 'fail':
-        return 'bg-red-500/20 text-red-300'
-      default:
-        return 'bg-gray-500/20 text-gray-300'
+      case 'fail': return 'bg-red-500/20 text-red-300'
+      default: return 'bg-gray-500/20 text-gray-300'
     }
   }
   
@@ -111,7 +109,8 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
     }
   }
 
-  const isCompleted = order.status.toLowerCase() === 'completed';
+  // ปรับปรุง logic ให้แม่นยำขึ้นโดยใช้ trim()
+  const isCompleted = order.status.trim().toLowerCase() === 'completed';
 
   return (
     <tr className="border-b border-gray-700 hover:bg-gray-700/50">
@@ -123,7 +122,6 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
         </a>
       </td>
       <td className="py-2 px-4">{order.charge}</td>
-      {/* ช่องกรอก Start Count */}
       <td className="py-2 px-4">
         <input
           type="number"
@@ -152,7 +150,6 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
           disabled={isCompleted}
         />
       </td>
-      {/* Dropdown สำหรับเลือก Status */}
       <td className="py-2 px-4">
         <select
           value={currentStatus}
@@ -167,7 +164,6 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
           ))}
         </select>
       </td>
-      {/* ปุ่ม Save และข้อความสถานะ */}
       <td className="py-2 px-4">
         <div className="flex flex-col items-start gap-1">
           <button
