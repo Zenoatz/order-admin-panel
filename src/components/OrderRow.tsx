@@ -1,122 +1,84 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
+import { Order } from '@/types'; // นำเข้า Order type ที่เราสร้างไว้
 
-// 1. กำหนด "หน้าตา" ของ props ที่จะรับเข้ามาให้ชัดเจนขึ้น
-// ตอนนี้มันต้องรับ order (ข้อมูล) และ onOrderUpdate (ฟังก์ชัน)
+// กำหนด Type ของ Props ที่จะรับเข้ามา
 interface OrderRowProps {
-  order: any;
-  onOrderUpdate: (updatedOrder: any) => void;
+  order: Order;
+  onUpdate: (updatedOrder: Order) => void;
 }
 
-const OrderRow = ({ order, onOrderUpdate }: OrderRowProps) => {
-  // State สำหรับเก็บค่าในช่อง input
+export default function OrderRow({ order, onUpdate }: OrderRowProps) {
   const [cost, setCost] = useState(order.cost || '');
   const [slipUrl, setSlipUrl] = useState(order.slip_url || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 2. State ใหม่สำหรับจัดการสถานะ "กำลังโหลด" ของปุ่ม
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  // 3. นี่คือหัวใจหลัก! ฟังก์ชันที่ทำงานเมื่อกดปุ่ม Update
-  const handleUpdate = async () => {
-    setIsUpdating(true); // เริ่มต้นสถานะโหลด (ปุ่มจะถูก disable)
-
-    const payload = {
+  const handleConfirm = async () => {
+    setIsSubmitting(true);
+    const updates = {
       id: order.id,
-      cost: parseFloat(cost) || 0, // แปลง cost เป็นตัวเลข ถ้ากรอกผิดให้เป็น 0
+      cost: cost === '' ? null : Number(cost),
       slip_url: slipUrl,
-      status: 'Completed', // เราจะเปลี่ยนสถานะเป็น 'Completed' เสมอเมื่อกดปุ่มนี้
+      status: 'Completed',
     };
 
     try {
-      // ยิง fetch ไปที่ API ของเราด้วยเมธอด POST
       const response = await fetch('/api/update-order', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload), // แปลงข้อมูลเป็น JSON string เพื่อส่งไป
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
       });
-
-      if (!response.ok) {
-        // ถ้า API ตอบกลับมาว่ามีปัญหา ให้โยน error ออกไป
-        throw new Error('Failed to update the order.');
-      }
-
-      // 4. ถ้าสำเร็จ API จะส่งข้อมูลที่อัปเดตแล้วกลับมา
-      const updatedOrderArray = await response.json();
-      if (updatedOrderArray && updatedOrderArray.length > 0) {
-        // 5. เราเรียกใช้ฟังก์ชัน onOrderUpdate ที่ได้รับมาจาก OrderTable
-        // เพื่อส่งข้อมูลใหม่กลับไปให้ "ผู้จัดการ" ของเราอัปเดตตาราง
-        onOrderUpdate(updatedOrderArray[0]);
-      }
-
+      const updatedOrder: Order = await response.json();
+      onUpdate(updatedOrder);
     } catch (error) {
-      console.error('Update failed:', error);
-      // ในแอปจริง เราอาจจะแสดงข้อความแจ้งเตือนผู้ใช้ตรงนี้
+      console.error("Failed to update order:", error);
     } finally {
-      setIsUpdating(false); // จบการโหลด (ปุ่มจะกลับมาใช้งานได้)
+      setIsSubmitting(false);
     }
   };
 
-  // คำนวณกำไรแบบ real-time
-  const profit = !isNaN(parseFloat(order.charge)) && !isNaN(parseFloat(cost))
-    ? parseFloat(order.charge) - parseFloat(cost)
-    : 0;
-
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-100">
-      <td className="py-3 px-4">{order.order_id}</td>
-      <td className="py-3 px-4">{order.service_name}</td>
-      <td className="py-3 px-4">
-        <a href={order.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-          View Link
-        </a>
-      </td>
-      <td className="py-3 px-4">{order.charge}</td>
-      <td className="py-3 px-4">
+    <tr className="border-b border-gray-700 hover:bg-gray-700/50">
+      <td className="py-2 px-4">{order.order_id}</td>
+      <td className="py-2 px-4">{order.service_name}</td>
+      <td className="py-2 px-4"><a href={order.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">View Link</a></td>
+      <td className="py-2 px-4">{order.charge}</td>
+      <td className="py-2 px-4">
         <input
           type="number"
           value={cost}
-          onChange={(e) => setCost(e.target.value)}
-          className="w-24 p-1 border rounded"
-          placeholder="0.00"
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setCost(e.target.value)}
+          className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24"
+          disabled={order.status === 'Completed'}
         />
       </td>
-      <td className="py-3 px-4">
-        {profit.toFixed(2)}
-      </td>
-      <td className="py-3 px-4">
+      <td className="py-2 px-4">{order.profit}</td>
+      <td className="py-2 px-4">
         <input
           type="text"
           value={slipUrl}
-          onChange={(e) => setSlipUrl(e.target.value)}
-          className="w-full p-1 border rounded"
-          placeholder="https://..."
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setSlipUrl(e.target.value)}
+          className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-full"
+          disabled={order.status === 'Completed'}
         />
       </td>
-      <td className="py-3 px-4">
-        {/* เพิ่ม Style ให้กับ Status เพื่อให้ดูง่ายขึ้น */}
-        <span
-          className={`py-1 px-3 rounded-full text-xs ${
-            order.status === 'Completed' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'
-          }`}
-        >
+      <td className="py-2 px-4">
+        <span className={`px-2 py-1 rounded-full text-xs ${order.status === 'Completed' ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
           {order.status}
         </span>
       </td>
-      <td className="py-3 px-4">
-        {/* 6. ปุ่มของเราจะเปลี่ยนข้อความและถูก disable ขณะที่กำลังอัปเดต */}
-        <button
-          onClick={handleUpdate}
-          disabled={isUpdating}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          {isUpdating ? 'Updating...' : 'Update'}
-        </button>
+      <td className="py-2 px-4">
+        {order.status !== 'Completed' && (
+          <button
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded disabled:bg-gray-500"
+          >
+            {isSubmitting ? 'Saving...' : 'Confirm'}
+          </button>
+        )}
       </td>
     </tr>
   );
-};
-
-export default OrderRow;
+}
