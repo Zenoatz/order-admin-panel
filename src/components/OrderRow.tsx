@@ -1,186 +1,140 @@
-'use client'
+'use client';
 
-import { useState, ChangeEvent, useEffect } from 'react'
-import { Order } from '@/types'
+import { useState, useEffect, useMemo } from 'react';
+import { Order } from '@/types';
 
 interface OrderRowProps {
-  order: Order
-  onUpdate: (updatedOrder: Order) => void
+  order: Order;
+  onUpdate: (orderId: number, updates: Partial<Order>) => void;
 }
 
-type UpdateStatus = {
-  message: string
-  type: 'info' | 'success' | 'error'
-} | null
-
-const STATUS_OPTIONS = [
-  'pending',
-  'in_progress',
-  'processing',
-  'completed',
-  'partial',
-  'canceled',
-  'error',
-  'fail',
-]
-
 export default function OrderRow({ order, onUpdate }: OrderRowProps) {
-  const [startCount, setStartCount] = useState(order.start_count ?? '')
-  const [cost, setCost] = useState(order.cost ?? '')
-  const [slipUrl, setSlipUrl] = useState(order.slip_url || '')
-  const [currentStatus, setCurrentStatus] = useState(order.status)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(null)
+  // State ภายในสำหรับจัดการค่าในฟอร์มของแต่ละแถว
+  const [currentStatus, setCurrentStatus] = useState(order.status || 'Pending');
+  const [startCount, setStartCount] = useState(order.start_count?.toString() || '');
+  const [cost, setCost] = useState(order.cost?.toString() || '');
+  const [slipUrl, setSlipUrl] = useState(order.slip_url || '');
+  const [isSaving, setIsSaving] = useState(false);
 
+  // คำนวณ isCompleted ด้วย useMemo เพื่อให้ค่าอัปเดตตาม order.status ที่เปลี่ยนไปเสมอ
+  // ป้องกันปัญหาที่ฟอร์มถูก disable ค้างแม้ข้อมูลจะเปลี่ยนไปแล้ว
+  const isCompleted = useMemo(() => {
+    const completedStatuses = ['Completed', 'Partial', 'Canceled'];
+    // ตรวจสอบสถานะของ order ที่มาจาก props โดยตรงเพื่อให้ข้อมูลเป็นปัจจุบันที่สุด
+    return completedStatuses.includes(order.status || '');
+  }, [order.status]);
+
+  // ใช้ useEffect เพื่อซิงค์ state ภายในกับ props ที่อาจเปลี่ยนแปลงจากภายนอก
+  // เมื่อมีการ refresh ข้อมูล state ของแถวนี้ก็จะอัปเดตตามไปด้วย
   useEffect(() => {
-    setStartCount(order.start_count ?? '');
-    setCost(order.cost ?? '');
+    setCurrentStatus(order.status || 'Pending');
+    setStartCount(order.start_count?.toString() || '');
+    setCost(order.cost?.toString() || '');
     setSlipUrl(order.slip_url || '');
-    setCurrentStatus(order.status);
   }, [order]);
 
   const handleSave = async () => {
-    setIsSubmitting(true)
-    setUpdateStatus({ message: 'Saving...', type: 'info' })
-
-    const updates = {
-      id: order.id,
-      order_id: order.order_id,
-      start_count: startCount === '' ? null : Number(startCount),
-      cost: cost === '' ? null : Number(cost),
-      slip_url: slipUrl,
+    setIsSaving(true);
+    const updates: Partial<Order> = {
       status: currentStatus,
-    }
+      start_count: startCount ? parseInt(startCount, 10) : null,
+      cost: cost ? parseFloat(cost) : null,
+      slip_url: slipUrl || null,
+    };
 
     try {
-      const response = await fetch('/api/update-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update order in Supabase.')
-      }
-      
-      if (result.permjaiStatus.error) {
-        setUpdateStatus({
-          message: `DB updated, but Permjai failed: ${result.permjaiStatus.error}`,
-          type: 'error',
-        })
-      } else {
-        setUpdateStatus({ message: 'Save successful!', type: 'success' })
-      }
-      onUpdate(result.data)
+      // เรียกฟังก์ชัน onUpdate ที่ส่งมาจาก parent (OrderTable) เพื่อส่งข้อมูลไปอัปเดต
+      await onUpdate(order.order_id, updates);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'An unknown error occurred.'
-      console.error('Failed to save order:', error)
-      setUpdateStatus({ message, type: 'error' })
+      console.error('Failed to update order:', error);
+      // สามารถเพิ่มการแจ้งเตือนผู้ใช้ตรงนี้ได้หากการบันทึกล้มเหลว
     } finally {
-      setIsSubmitting(false)
-      setTimeout(() => setUpdateStatus(null), 5000)
+      setIsSaving(false);
     }
-  }
+  };
 
-  const getStatusColor = (status: string) => {
-    // เพิ่มการตรวจสอบเพื่อให้แน่ใจว่า status เป็น string
-    const safeStatus = typeof status === 'string' ? status.toLowerCase() : '';
-    switch (safeStatus) {
-      case 'completed': return 'bg-green-500/20 text-green-300'
-      case 'pending': return 'bg-yellow-500/20 text-yellow-300'
-      case 'in_progress':
-      case 'processing': return 'bg-blue-500/20 text-blue-300'
-      case 'canceled':
-      case 'error':
-      case 'fail': return 'bg-red-500/20 text-red-300'
-      default: return 'bg-gray-500/20 text-gray-300'
+  // ฟังก์ชันสำหรับเปลี่ยนสีพื้นหลังของแถวตามสถานะ
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'Pending':
+        return 'bg-yellow-100';
+      case 'In progress':
+        return 'bg-blue-100';
+      case 'Completed':
+        return 'bg-green-100';
+      case 'Partial':
+        return 'bg-purple-100';
+      case 'Canceled':
+        return 'bg-red-100';
+      default:
+        return 'bg-gray-100';
     }
-  }
-  
-  const getUpdateStatusColor = () => {
-    if (!updateStatus) return ''
-    switch (updateStatus.type) {
-      case 'info': return 'text-blue-400'
-      case 'success': return 'text-green-400'
-      case 'error': return 'text-red-400'
-      default: return ''
-    }
-  }
-
-  // **แก้ไข:** เพิ่มการตรวจสอบให้แน่ใจว่า order.status เป็น string ก่อนเรียกใช้ .trim()
-  const isCompleted = typeof order.status === 'string' && order.status.trim().toLowerCase() === 'completed';
+  };
 
   return (
-    <tr className="border-b border-gray-700 hover:bg-gray-700/50">
-      <td className="py-2 px-4">{order.order_id}</td>
-      <td className="py-2 px-4">{order.service_name}</td>
-      <td className="py-2 px-4">
-        <a href={order.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-          View
-        </a>
+    <tr className={`border-b border-gray-200 ${getStatusColor(order.status)}`}>
+      <td className="px-4 py-2 text-sm text-gray-700">{order.order_id}</td>
+      <td className="px-4 py-2 text-sm text-gray-700">{order.user}</td>
+      <td className="px-4 py-2 text-sm text-gray-700 break-all">{order.link}</td>
+      {/* แสดงผล quantity ซึ่งตอนนี้มีข้อมูลส่งมาจาก Backend แล้ว หลังจากที่คุณเพิ่มคอลัมน์ */}
+      <td className="px-4 py-2 text-sm text-gray-700">{order.quantity}</td>
+      <td className="px-4 py-2 text-sm text-gray-700">{order.service_name}</td>
+      <td className="px-4 py-2">
+        <select
+          value={currentStatus}
+          onChange={(e) => setCurrentStatus(e.target.value)}
+          // Input จะถูก disabled ก็ต่อเมื่อ isCompleted เป็น true เท่านั้น
+          disabled={isCompleted}
+          className="w-full p-1 border rounded-md disabled:bg-gray-200 disabled:cursor-not-allowed"
+        >
+          <option value="Pending">Pending</option>
+          <option value="In progress">In progress</option>
+          <option value="Completed">Completed</option>
+          <option value="Partial">Partial</option>
+          <option value="Canceled">Canceled</option>
+        </select>
       </td>
-      <td className="py-2 px-4">{order.charge}</td>
-      <td className="py-2 px-4">
+      <td className="px-4 py-2">
         <input
           type="number"
           value={startCount}
           onChange={(e) => setStartCount(e.target.value)}
-          className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24"
           disabled={isCompleted}
+          className="w-full p-1 border rounded-md disabled:bg-gray-200 disabled:cursor-not-allowed"
+          placeholder="Start Count"
         />
       </td>
-      <td className="py-2 px-4">
+      <td className="px-4 py-2">
         <input
           type="number"
+          step="0.01"
           value={cost}
           onChange={(e) => setCost(e.target.value)}
-          className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24"
           disabled={isCompleted}
+          className="w-full p-1 border rounded-md disabled:bg-gray-200 disabled:cursor-not-allowed"
+          placeholder="Cost"
         />
       </td>
-      <td className="py-2 px-4">{order.profit?.toFixed(2) ?? 'N/A'}</td>
-      <td className="py-2 px-4">
+      <td className="px-4 py-2">
         <input
           type="text"
           value={slipUrl}
           onChange={(e) => setSlipUrl(e.target.value)}
-          className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-full"
           disabled={isCompleted}
+          className="w-full p-1 border rounded-md disabled:bg-gray-200 disabled:cursor-not-allowed"
+          placeholder="Slip URL"
         />
       </td>
-      <td className="py-2 px-4">
-        <select
-          value={currentStatus}
-          onChange={(e) => setCurrentStatus(e.target.value)}
-          className={`border rounded px-2 py-1 w-full ${getStatusColor(currentStatus)} border-gray-600 bg-gray-900`}
-          disabled={isCompleted}
+      <td className="px-4 py-2 text-center">
+        <button
+          onClick={handleSave}
+          // ปุ่มจะถูก disable เมื่อ isCompleted เป็น true หรือกำลังอยู่ในสถานะ saving
+          disabled={isCompleted || isSaving}
+          className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="py-2 px-4">
-        <div className="flex flex-col items-start gap-1">
-          <button
-            onClick={handleSave}
-            disabled={isSubmitting || isCompleted}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded disabled:bg-gray-500 disabled:cursor-not-allowed w-full text-center"
-          >
-            {isSubmitting ? 'Saving...' : 'Save'}
-          </button>
-          {updateStatus && (
-            <p className={`text-xs ${getUpdateStatusColor()}`}>
-              {updateStatus.message}
-            </p>
-          )}
-        </div>
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
       </td>
     </tr>
-  )
+  );
 }
