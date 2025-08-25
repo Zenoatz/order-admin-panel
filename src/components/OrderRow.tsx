@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, ChangeEvent, useEffect } from 'react' // เพิ่ม useEffect
+import { useState, ChangeEvent, useEffect } from 'react'
 import { Order } from '@/types'
 
 interface OrderRowProps {
@@ -32,13 +32,12 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(null)
 
-  // --- เพิ่ม useEffect เพื่ออัปเดต State ภายในเมื่อ Prop ภายนอกเปลี่ยน ---
   useEffect(() => {
     setStartCount(order.start_count ?? '');
     setCost(order.cost ?? '');
     setSlipUrl(order.slip_url || '');
     setCurrentStatus(order.status);
-  }, [order]); // <-- ให้โค้ดส่วนนี้ทำงานทุกครั้งที่ `order` เปลี่ยน
+  }, [order]);
 
   const handleSave = async () => {
     setIsSubmitting(true)
@@ -87,7 +86,9 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
   }
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    // เพิ่มการตรวจสอบเพื่อให้แน่ใจว่า status เป็น string
+    const safeStatus = typeof status === 'string' ? status.toLowerCase() : '';
+    switch (safeStatus) {
       case 'completed': return 'bg-green-500/20 text-green-300'
       case 'pending': return 'bg-yellow-500/20 text-yellow-300'
       case 'in_progress':
@@ -109,8 +110,8 @@ export default function OrderRow({ order, onUpdate }: OrderRowProps) {
     }
   }
 
-  // ปรับปรุง logic ให้แม่นยำขึ้นโดยใช้ trim()
-  const isCompleted = order.status.trim().toLowerCase() === 'completed';
+  // **แก้ไข:** เพิ่มการตรวจสอบให้แน่ใจว่า order.status เป็น string ก่อนเรียกใช้ .trim()
+  const isCompleted = typeof order.status === 'string' && order.status.trim().toLowerCase() === 'completed';
 
   return (
     <tr className="border-b border-gray-700 hover:bg-gray-700/50">
