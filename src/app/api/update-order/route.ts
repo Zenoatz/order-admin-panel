@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     .single()
 
   if (fetchError) {
+    console.error('Error fetching existing order:', fetchError)
     return NextResponse.json({ error: fetchError.message }, { status: 500 })
   }
 
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
+    console.error('Error updating order:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

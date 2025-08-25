@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     .lte('created_at', endDate.toISOString())
 
   if (error) {
+    console.error('Error fetching summary:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
