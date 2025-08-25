@@ -1,4 +1,3 @@
-// src/components/OrderTable.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -14,34 +13,41 @@ export default function OrderTable() {
     const fetchOrders = async () => {
       try {
         setLoading(true)
-        setError(null) // เคลียร์ error เก่าทิ้งทุกครั้งที่เริ่มดึงข้อมูลใหม่
+        setError(null)
         const response = await fetch('/api/orders')
-        const data = await response.json() // อ่านข้อมูล JSON ออกมาก่อนเสมอ
+        const data = await response.json()
 
-        // ตรวจสอบว่าการเรียก API สำเร็จหรือไม่ จากค่า response.ok
         if (!response.ok) {
-          // ถ้าไม่สำเร็จ, 'data' ที่ได้มาน่าจะมี object { error: '...' }
-          // เราจะใช้ข้อความนั้นมาแสดงผลเพื่อบอกสาเหตุที่ชัดเจนขึ้น
           throw new Error(data.error || 'Failed to fetch orders')
         }
 
-        // ถ้าสำเร็จ, ตรวจสอบอีกชั้นเพื่อความปลอดภัยว่าข้อมูลที่ได้เป็น Array จริงๆ
         if (Array.isArray(data)) {
           setOrders(data)
         } else {
-          // กรณีนี้ไม่ควรเกิดขึ้นถ้า API เราถูกต้อง แต่เป็นการป้องกันไว้ก่อน
           throw new Error('Received data is not in the expected format.')
         }
-
-      } catch (err: any) {
-        setError(err.message) // เก็บข้อความ Error ที่เกิดขึ้นไว้
+      } catch (err) {
+        // **แก้ไข:** เปลี่ยนจากการใช้ `err: any` เป็นการตรวจสอบประเภทของ Error
+        if (err instanceof Error) {
+          setError(err.message)
+        } else {
+          setError('An unknown error occurred.')
+        }
       } finally {
-        setLoading(false) // หยุดการโหลดเสมอ ไม่ว่าจะสำเร็จหรือล้มเหลว
+        setLoading(false)
       }
     }
 
     fetchOrders()
   }, [])
+
+  const handleOrderUpdate = (updatedOrder: Order) => {
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.id === updatedOrder.id ? updatedOrder : order
+      )
+    )
+  }
 
   if (loading) {
     return <div className="text-center p-8">Loading orders...</div>
@@ -73,7 +79,7 @@ export default function OrderTable() {
         </thead>
         <tbody>
           {orders.map((order) => (
-            <OrderRow key={order.id} order={order} />
+            <OrderRow key={order.id} order={order} onUpdate={handleOrderUpdate} />
           ))}
         </tbody>
       </table>

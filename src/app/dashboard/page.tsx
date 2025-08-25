@@ -31,8 +31,13 @@ export default function Dashboard() {
         }
         const data = await response.json()
         setSummary(data)
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err) {
+        // **แก้ไข:** เปลี่ยนจากการใช้ `err: any` เป็นการตรวจสอบประเภทของ Error
+        if (err instanceof Error) {
+          setError(err.message)
+        } else {
+          setError('An unknown error occurred.')
+        }
         setSummary(null)
       } finally {
         setLoading(false)
