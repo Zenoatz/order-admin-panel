@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
-  const cookieStore = cookies()
+  const cookieStore = await cookies();
 
   // ✅ แก้ไข: สร้าง Supabase client โดยตรงในไฟล์นี้
   // เพื่อหลีกเลี่ยงปัญหา Type-checking ที่เกิดขึ้นใน Environment ของคุณ
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value
+          return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
