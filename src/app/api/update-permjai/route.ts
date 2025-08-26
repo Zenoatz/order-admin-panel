@@ -1,11 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
   const { id, permjai_status } = await request.json()
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
+  const supabase = createClient()
   const { data, error } = await supabase.from('orders').update({ permjai_status }).eq('id', id).select()
   if (error) { 
     return NextResponse.json({ error: error.message }, { status: 500 }) 

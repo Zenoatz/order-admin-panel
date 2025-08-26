@@ -1,10 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 export default async function Home() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore);
+  const supabase = createClient();
 
   const { data: orders, error } = await supabase
     .from('orders')
@@ -16,6 +14,7 @@ export default async function Home() {
     console.error("Error fetching orders for home page:", error)
   }
 
+  // ... a lot of code ...
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-4xl p-8 space-y-8 bg-white rounded-lg shadow-md">

@@ -1,10 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 
 export async function GET() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
+  const supabase = createClient()
   const { data: summary, error } = await supabase.from('orders').select('status, amount')
   if (error) { 
     return NextResponse.json({ error: error.message }, { status: 500 }) 

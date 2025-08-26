@@ -1,11 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import OrderTable from '@/components/OrderTable'
 import { Order } from '@/types'
-import { cookies } from 'next/headers'
 
 async function getOrders(): Promise<Order[]> {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  const supabase = createClient()
   const { data, error } = await supabase.from('orders').select('*').order('id', { ascending: false })
   if (error) {
     console.error('Error fetching orders:', error)
@@ -15,9 +13,7 @@ async function getOrders(): Promise<Order[]> {
 }
 
 async function getSummary() {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-
+  const supabase = createClient()
   const { data: summary, error } = await supabase
     .from('orders')
     .select('status, amount')
@@ -52,7 +48,6 @@ async function getSummary() {
 
   return summaryData
 }
-
 
 export default async function DashboardPage() {
   const orders = await getOrders()
