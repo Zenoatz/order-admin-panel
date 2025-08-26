@@ -4,19 +4,19 @@ import { useState } from 'react';
 import { Order } from '@/types';
 
 // [แก้ไข] ปรับปรุงฟังก์ชัน debounce ให้เป็น Generic ที่สมบูรณ์และ type-safe ที่สุด
-// แก้ไขปัญหา Type Mismatch ที่เกิดขึ้นตอน build ได้อย่างสมบูรณ์
-const debounce = <F extends (...args: any[]) => any>(
-  func: F,
+// โดยไม่มีการใช้ 'any' เพื่อให้ผ่านกฎของ ESLint ที่เข้มงวดที่สุด
+function debounce<TArgs extends unknown[], TReturn>(
+  func: (...args: TArgs) => TReturn,
   delay: number
-): ((...args: Parameters<F>) => Promise<ReturnType<F>>) => {
+): (...args: TArgs) => Promise<TReturn> {
   let timeout: NodeJS.Timeout;
-  return (...args: Parameters<F>): Promise<ReturnType<F>> => {
+  return (...args: TArgs): Promise<TReturn> => {
+    clearTimeout(timeout);
     return new Promise((resolve) => {
-      clearTimeout(timeout);
       timeout = setTimeout(() => resolve(func(...args)), delay);
     });
   };
-};
+}
 
 // Color mapping for order statuses
 const statusColors: { [key: string]: string } = {
