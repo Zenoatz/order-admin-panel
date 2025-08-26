@@ -1,39 +1,69 @@
-import { createClient } from '@/utils/supabase/server';
-import OrderTable from '@/components/OrderTable';
+import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
+import Link from 'next/link'
 
 export default async function Home() {
-  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
-  const supabase = createClient();
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore);
 
   const { data: orders, error } = await supabase
     .from('orders')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('id', { ascending: false })
+    .limit(10)
 
   if (error) {
-    console.error('Error fetching orders:', error);
-    return <p className="text-red-500">Error loading orders.</p>;
-  }
-
-  if (!orders) {
-    return <p>No orders found.</p>;
+    console.error("Error fetching orders for home page:", error)
   }
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-center sm:text-left">
-            Order Management Dashboard
-          </h1>
-        </header>
-
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-4xl p-8 space-y-8 bg-white rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold text-center text-gray-800">
+          Welcome to the Order Admin Panel
+        </h1>
+        <p className="text-center text-gray-600">
+          This is a simple dashboard to view and manage recent orders.
+        </p>
+        <div className="text-center">
+          <Link href="/dashboard" className="inline-block px-6 py-3 text-lg font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">
+              Go to Dashboard
+          </Link>
+        </div>
         <div className="mt-8">
-          <div className="bg-gray-800 shadow-lg rounded-lg p-4 sm:p-6">
-            <OrderTable orders={orders} />
+          <h2 className="text-2xl font-semibold text-gray-700 mb-4">Recent Orders</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {orders?.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">{order.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{order.customer_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">${order.amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        order.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
-    </main>
-  );
+    </div>
+  )
 }
