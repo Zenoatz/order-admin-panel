@@ -3,8 +3,12 @@
 import { useState } from 'react';
 import { Order } from '@/types';
 
-// A fully type-safe debounce function
-const debounce = <F extends (...args: any[]) => any>(func: F, delay: number) => {
+// [แก้ไข] ปรับปรุงฟังก์ชัน debounce ให้เป็น Generic ที่สมบูรณ์และ type-safe ที่สุด
+// แก้ไขปัญหา Type Mismatch ที่เกิดขึ้นตอน build ได้อย่างสมบูรณ์
+const debounce = <F extends (...args: any[]) => any>(
+  func: F,
+  delay: number
+): ((...args: Parameters<F>) => Promise<ReturnType<F>>) => {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<F>): Promise<ReturnType<F>> => {
     return new Promise((resolve) => {
