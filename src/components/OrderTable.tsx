@@ -1,87 +1,111 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-import { Order } from '@/types';
 import OrderRow from './OrderRow';
+import type { Order } from '@/types';
 
 export default function OrderTable() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch('/api/orders');
-      if (!response.ok) {
-        throw new Error('Failed to fetch orders');
-      }
-      const data = await response.json();
-      setOrders(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/orders');
+        if (!response.ok) {
+          throw new Error('Failed to fetch orders');
+        }
+        const data = await response.json();
+        setOrders(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchOrders();
     const interval = setInterval(fetchOrders, 30000); // Refresh every 30 seconds
+
     return () => clearInterval(interval);
   }, []);
 
-  const handleOrderUpdate = async (orderId: number, updates: Partial<Order>) => {
-    setOrders((prevOrders) =>
-      prevOrders.map((order) =>
-        order.order_id === orderId ? { ...order, ...updates } : order
+  const handleUpdateOrder = (updatedOrder: Order) => {
+    setOrders(currentOrders =>
+      currentOrders.map(order =>
+        order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
       )
     );
+  };
 
+  const handleUpdatePermjai = async (orderId: number, status: 'Completed' | 'Canceled' | 'Partial') => {
     try {
-      const response = await fetch('/api/update-order', {
+      const response = await fetch('/api/update-permjai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ order_id: orderId, ...updates }),
+        body: JSON.stringify({ orderId, status }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update order on server');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update status on Permjai');
       }
+
+      alert(`Order ${orderId} status updated to ${status} on Permjai successfully!`);
+      // The local state will be updated via polling or can be updated here if needed
+      const updatedOrder = orders.find(o => o.id === orderId);
+      if (updatedOrder) {
+        handleUpdateOrder({ ...updatedOrder, status });
+      }
+
     } catch (error) {
-      console.error(error);
-      alert('Error: Could not save changes. Reverting.');
-      fetchOrders(); 
+      console.error('Error updating Permjai status:', error);
+      alert(error instanceof Error ? error.message : 'An unknown error occurred');
+      throw error; // re-throw to be caught in OrderRow
     }
   };
 
-  if (loading) {
-    return <div className="text-center p-8">Loading orders...</div>;
-  }
 
   return (
-    <div className="overflow-x-auto shadow-md rounded-lg">
-      <table className="min-w-full bg-white">
-        {/* --- NEW HEADER STYLE --- */}
-        <thead className="bg-gray-800 text-white">
+    <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
+      <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+        <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Order ID</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">User</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Link</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Quantity</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Service</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Start Count</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Cost</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Slip URL</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>
+            <th scope="col" className="px-6 py-3">Order ID</th>
+            <th scope="col" className="px-6 py-3">Link</th>
+            <th scope="col" className="px-6 py-3">Service</th>
+            <th scope="col" className="px-6 py-3">Charge</th>
+            <th scope="col" className="px-6 py-3">Start Count</th>
+            <th scope="col" className="px-6 py-3">Remains</th>
+            <th scope="col" className="px-6 py-3">Status</th>
+            <th scope="col" className="px-6 py-3">Created At</th>
+            <th scope="col" className="px-6 py-3">
+              <span className="sr-only">Edit</span>
+            </th>
           </tr>
         </thead>
-        {/* --- END NEW HEADER STYLE --- */}
-        <tbody className="divide-y divide-gray-200">
-          {orders.map((order) => (
-            <OrderRow key={order.id} order={order} onUpdate={handleOrderUpdate} />
-          ))}
+        <tbody>
+          {loading ? (
+            <tr>
+              <td colSpan={9} className="text-center p-4">Loading...</td>
+            </tr>
+          ) : error ? (
+            <tr>
+              <td colSpan={9} className="text-center p-4 text-red-500">{error}</td>
+            </tr>
+          ) : orders.length > 0 ? (
+            orders.map(order => (
+              <OrderRow key={order.id} order={order} onUpdate={handleUpdateOrder} onUpdatePermjai={handleUpdatePermjai} />
+            ))
+          ) : (
+            <tr>
+              <td colSpan={9} className="text-center p-4">No orders found.</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
