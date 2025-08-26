@@ -1,10 +1,12 @@
-import { createClient as createSummaryClient } from '@/utils/supabase/server' // Renamed to avoid conflict
-import { NextResponse as NextResponseSummary } from 'next/server' // Renamed to avoid conflict
+import { createClient } from '@/utils/supabase/server'
+import { NextResponse } from 'next/server'
 
-export async function GET_SUMMARY() { // Renamed to avoid conflict
-  const supabase = createSummaryClient()
+export async function GET() {
+  const supabase = createClient()
   const { data: summary, error } = await supabase.from('orders').select('status, amount')
-  if (error) { return NextResponseSummary.json({ error: error.message }, { status: 500 }) }
+  if (error) { 
+    return NextResponse.json({ error: error.message }, { status: 500 }) 
+  }
   const initialState = {
     pending: { count: 0, total: 0 },
     processing: { count: 0, total: 0 },
@@ -20,5 +22,5 @@ export async function GET_SUMMARY() { // Renamed to avoid conflict
     }
     return acc
   }, initialState)
-  return NextResponseSummary.json({ data: summaryData })
+  return NextResponse.json({ data: summaryData })
 }
