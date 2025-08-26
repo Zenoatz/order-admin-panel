@@ -60,7 +60,8 @@ export default async function DashboardPage() {
           <p className="text-2xl font-semibold">{summary.completed_orders}</p>
         </div>
       </div>
-      <OrderTable initialOrders={orders} />
+      {/* --- FIX: Changed prop name from initialOrders to orders --- */}
+      <OrderTable orders={orders} />
     </div>
   )
 }
