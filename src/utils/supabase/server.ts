@@ -1,18 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/cookies'
+import { Database } from '@/types/supabase'
 
-// This is the definitive, correct, and standard implementation for creating a 
-// Supabase server client in a Next.js App Router environment.
-export const createClient = () => {
-  // In Server Components, the `cookies()` function returns the actual cookie store object directly.
-  // The Type Error is an environmental issue. We are using Type Casting `as ReadonlyRequestCookies`
-  // to force TypeScript to understand the correct return type and resolve the build error.
-  const cookieStore = cookies() as ReadonlyRequestCookies
-
-  // The createServerClient function is designed to receive an object containing
-  // the methods for interacting with cookies. The library handles the rest.
-  return createServerClient(
+export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -23,15 +14,19 @@ export const createClient = () => {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options })
-          } catch (_error) { // FIX: Changed 'error' to '_error' to resolve the no-unused-vars warning.
-            // This error is expected when trying to set a cookie from a Server Component.
-            // It can be safely ignored if you have a middleware refreshing user sessions.
+          } catch (_error) {
+            // The `set` method is used by the Supabase Auth Helper for Next.js.
+            // If this `set` method is called in a Server Component, an error is thrown,
+            // as cookies can't be set from there.
+            // The error is safe to ignore; the Supabase client will fall back to retrieving
+            // cookies from the request headers.
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value, '', ...options })
-          } catch (_error) { // FIX: Changed 'error' to '_error' to resolve the no-unused-vars warning.
+            // This is the corrected line:
+            cookieStore.set({ name, value: '', ...options })
+          } catch (_error) {
             // Similar to `set`, this can be safely ignored.
           }
         },
