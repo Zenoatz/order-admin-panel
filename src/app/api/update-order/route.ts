@@ -1,97 +1,90 @@
-import { createClient } from '@/utils/supabase/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 
-const PERMJAI_API_URL = "https://permjai.com/adminapi/v2/orders/status";
+export async function POST(req: NextRequest) {
+  const cookieStore = cookies()
 
-async function updatePermjai(orderData: { id: number; status?: string; start_count?: number; remains?: number }) {
-  const permjaiApiKey = process.env.PERMJAI_API_KEY;
-  if (!permjaiApiKey) {
-    throw new Error('Permjai API key is not configured');
-  }
-
-  const payload: { order_id: number; status?: string; start_count?: number; remains?: number } = {
-    order_id: orderData.id,
-  };
-
-  // ส่งข้อมูลเฉพาะที่มีการเปลี่ยนแปลงและ Permjai API รองรับ
-  if (orderData.start_count !== undefined) payload.start_count = orderData.start_count;
-  if (orderData.remains !== undefined) payload.remains = orderData.remains;
+  // ✅ แก้ไข: สร้าง Supabase client โดยตรงในไฟล์นี้
+  // เพื่อหลีกเลี่ยงปัญหา Type-checking ที่เกิดขึ้นใน Environment ของคุณ
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing sessions.
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing sessions.
+          }
+        },
+      },
+    }
+  )
   
-  // แปลง status ที่รองรับเป็นตัวพิมพ์เล็ก
-  const validStatuses = ['Completed', 'Partial', 'Canceled'];
-  if (orderData.status && validStatuses.includes(orderData.status)) {
-    payload.status = orderData.status.toLowerCase();
-  }
+  const { id, status, start_count, remains } = await req.json()
 
-  // ไม่ต้องส่งถ้าไม่มีอะไรให้อัปเดต (นอกจาก order_id)
-  if (Object.keys(payload).length <= 1) {
-      console.log("No data to update on Permjai for order:", orderData.id);
-      return;
-  }
-
-  console.log('Sending update to Permjai:', payload);
-  
-  const response = await fetch(PERMJAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'X-Api-Key': permjaiApiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const responseData = await response.json();
-
-  if (!response.ok || responseData.error_code !== 0) {
-    console.error('Permjai API Error:', responseData);
-    throw new Error(responseData.error_message || 'Failed to update order on Permjai');
-  }
-  console.log('Successfully updated order on Permjai:', responseData);
-}
-
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  const { id, status, start_count, remains } = body;
-
-  if (!id) {
-    return new NextResponse(JSON.stringify({ message: 'Order ID is required' }), { status: 400 });
+  if (id === undefined || status === undefined) {
+    return NextResponse.json({ error: 'Missing id or status' }, { status: 400 })
   }
 
   try {
-    // --- 1. อัปเดต Supabase ---
-    const cookieStore = cookies();
-    // @ts-expect-error
-    const supabase = createClient(cookieStore);
-
-    const dataToUpdate: { [key: string]: any } = {};
-    if (status) dataToUpdate.status = status;
-    if (start_count !== undefined) dataToUpdate.start_count = start_count;
-    if (remains !== undefined) dataToUpdate.remains = remains;
-
-    if (Object.keys(dataToUpdate).length === 0) {
-      return new NextResponse(JSON.stringify({ message: 'No fields to update' }), { status: 400 });
-    }
-
+    // 1. อัปเดตข้อมูลในฐานข้อมูล Supabase
     const { data: supabaseData, error: supabaseError } = await supabase
       .from('orders')
-      .update(dataToUpdate)
-      .eq('id', id)
-      .select();
+      .update({ 
+        status, 
+        start_count: start_count ?? null,
+        remains: remains ?? null 
+      })
+      .eq('permjai_order_id', id)
+      .select()
+      .single();
 
     if (supabaseError) {
-      throw new Error(supabaseError.message);
+      console.error('Supabase update error:', supabaseError);
+      throw supabaseError
     }
 
-    // --- 2. อัปเดต Permjai ---
-    await updatePermjai({ id, status, start_count, remains });
+    // 2. ส่งข้อมูลไปอัปเดตที่ Permjai ผ่าน API Route ของเรา
+    const internalApiUrl = new URL('/api/update-permjai', req.url);
 
-    return NextResponse.json(supabaseData);
+    const permjaiUpdateResponse = await fetch(internalApiUrl.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, start_count, remains }),
+    });
 
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : 'An internal server error occurred';
-    console.error('API Route Error:', errorMessage);
-    return new NextResponse(JSON.stringify({ message: errorMessage }), { status: 500 });
+    if (!permjaiUpdateResponse.ok) {
+        const errorBody = await permjaiUpdateResponse.json();
+        throw new Error(errorBody.error || 'Failed to update Permjai status.');
+    }
+
+    const permjaiUpdateData = await permjaiUpdateResponse.json();
+
+    // 3. ส่งผลลัพธ์กลับไป
+    return NextResponse.json({ 
+      message: 'Order updated successfully in both Supabase and Permjai', 
+      supabaseData: supabaseData,
+      permjaiData: permjaiUpdateData.data
+    })
+
+  } catch (error: any) {
+    console.error('Overall update error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -1,99 +1,58 @@
-import { createClient } from '@/utils/supabase/server'
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { Order } from '@/types'
+import { NextResponse } from 'next/server';
 
-const PERMJAI_API_URL = "https://permjai.com/adminapi/v2/orders/status";
+export async function POST(req: Request) {
+  // ดึงข้อมูลที่จำเป็นจาก request body
+  const { id, status, start_count, remains } = await req.json();
 
-async function updatePermjai(orderData: { id: number; status?: string; start_count?: number; remains?: number }) {
+  // ดึงค่า API Key และ URL จาก environment variables
   const permjaiApiKey = process.env.PERMJAI_API_KEY;
-  if (!permjaiApiKey) {
-    throw new Error('Permjai API key is not configured');
+  const permjaiApiUrl = process.env.PERMJAI_API_URL;
+
+  // ตรวจสอบว่ามีค่าที่จำเป็นครบถ้วนหรือไม่
+  if (!permjaiApiKey || !permjaiApiUrl) {
+    return NextResponse.json(
+      { error: 'Permjai API Key or URL is not configured in environment variables.' },
+      { status: 500 }
+    );
   }
 
-  const payload: { order_id: number; status?: string; start_count?: number; remains?: number } = {
-    order_id: orderData.id,
+  if (id === undefined || status === undefined) {
+    return NextResponse.json({ error: 'Missing order id or status' }, { status: 400 });
+  }
+
+  // สร้าง body สำหรับส่งไปยัง Permjai API
+  const permjaiRequestBody = {
+    id: Number(id),
+    status: status,
+    start_count: start_count ? Number(start_count) : undefined,
+    remains: remains !== undefined ? Number(remains) : undefined,
   };
 
-  // ส่งข้อมูลเฉพาะที่มีการเปลี่ยนแปลงและ Permjai API รองรับ
-  if (orderData.start_count !== undefined) payload.start_count = orderData.start_count;
-  if (orderData.remains !== undefined) payload.remains = orderData.remains;
-  
-  // แปลง status ที่รองรับเป็นตัวพิมพ์เล็ก
-  const validStatuses = ['Completed', 'Partial', 'Canceled'];
-  if (orderData.status && validStatuses.includes(orderData.status)) {
-    payload.status = orderData.status.toLowerCase();
-  }
-
-  // ไม่ต้องส่งถ้าไม่มีอะไรให้อัปเดต (นอกจาก order_id)
-  if (Object.keys(payload).length <= 1) {
-      console.log("No data to update on Permjai for order:", orderData.id);
-      return;
-  }
-
-  console.log('Sending update to Permjai:', payload);
-  
-  const response = await fetch(PERMJAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'X-Api-Key': permjaiApiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const responseData = await response.json();
-
-  if (!response.ok || responseData.error_code !== 0) {
-    console.error('Permjai API Error:', responseData);
-    throw new Error(responseData.error_message || 'Failed to update order on Permjai');
-  }
-  console.log('Successfully updated order on Permjai:', responseData);
-}
-
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  const { id, status, start_count, remains } = body;
-
-  if (!id) {
-    return new NextResponse(JSON.stringify({ message: 'Order ID is required' }), { status: 400 });
-  }
-
   try {
-    // --- 1. อัปเดต Supabase ---
-    const cookieStore = cookies();
-    // @ts-expect-error Supabase client creation can cause type issues in some environments.
-    const supabase = createClient(cookieStore);
+    // เรียกใช้งาน Permjai API
+    const response = await fetch(`${permjaiApiUrl}/orders/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': permjaiApiKey,
+      },
+      body: JSON.stringify(permjaiRequestBody),
+    });
 
-    // แก้ไข: กำหนด type ที่ชัดเจนเพื่อหลีกเลี่ยงการใช้ 'any'
-    const dataToUpdate: Partial<Pick<Order, 'status' | 'start_count' | 'remains'>> = {};
-    if (status) dataToUpdate.status = status;
-    if (start_count !== undefined) dataToUpdate.start_count = start_count;
-    if (remains !== undefined) dataToUpdate.remains = remains;
-
-    if (Object.keys(dataToUpdate).length === 0) {
-      return new NextResponse(JSON.stringify({ message: 'No fields to update' }), { status: 400 });
+    // ตรวจสอบ response จาก Permjai
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error from Permjai API:', errorData);
+        throw new Error(errorData.error_message || `Permjai API request failed with status ${response.status}`);
     }
 
-    const { data: supabaseData, error: supabaseError } = await supabase
-      .from('orders')
-      .update(dataToUpdate)
-      .eq('id', id)
-      .select();
+    const data = await response.json();
 
-    if (supabaseError) {
-      throw new Error(supabaseError.message);
-    }
+    // ส่ง response กลับไปยัง client
+    return NextResponse.json({ message: 'Successfully updated Permjai', data });
 
-    // --- 2. อัปเดต Permjai ---
-    await updatePermjai({ id, status, start_count, remains });
-
-    return NextResponse.json(supabaseData);
-
-  } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : 'An internal server error occurred';
-    console.error('API Route Error:', errorMessage);
-    return new NextResponse(JSON.stringify({ message: errorMessage }), { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to update Permjai:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
