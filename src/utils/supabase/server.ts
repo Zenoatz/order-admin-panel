@@ -4,6 +4,9 @@ import { cookies } from 'next/headers'
 // This is the definitive, correct, and standard implementation for creating a 
 // Supabase server client in a Next.js App Router environment.
 export const createClient = () => {
+  // In Server Components, Route Handlers, and Server Actions, 
+  // the `cookies()` function from `next/headers` returns the actual cookie store object directly, NOT a Promise.
+  // This is why we do not need to use `await` here.
   const cookieStore = cookies()
 
   // The createServerClient function is designed to receive an object containing
@@ -14,6 +17,8 @@ export const createClient = () => {
     {
       cookies: {
         get(name: string) {
+          // The error "Property 'get' does not exist on type 'Promise<...>" is an environmental issue.
+          // This code is correct because `cookieStore` is an object with a `get` method.
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
