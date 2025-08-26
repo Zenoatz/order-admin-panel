@@ -1,10 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import OrderTable from '@/components/OrderTable'
 import { Order } from '@/types'
+import { cookies } from 'next/headers'
 
 async function getOrders(): Promise<Order[]> {
-  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
   const { data, error } = await supabase.from('orders').select('*').order('id', { ascending: false })
   if (error) {
     console.error('Error fetching orders:', error)
@@ -14,8 +15,8 @@ async function getOrders(): Promise<Order[]> {
 }
 
 async function getSummary() {
-  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
 
   const { data: summary, error } = await supabase
     .from('orders')

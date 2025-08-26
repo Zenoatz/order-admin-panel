@@ -1,9 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 import Link from 'next/link'
 
 export default async function Home() {
-  // [แก้ไข] เรียกใช้ createClient โดยไม่ต้องส่ง argument
-  const supabase = createClient();
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore);
 
   const { data: orders, error } = await supabase
     .from('orders')

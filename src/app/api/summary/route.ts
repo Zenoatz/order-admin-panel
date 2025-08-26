@@ -1,8 +1,10 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function GET() {
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
   const { data: summary, error } = await supabase.from('orders').select('status, amount')
   if (error) { 
     return NextResponse.json({ error: error.message }, { status: 500 }) 
