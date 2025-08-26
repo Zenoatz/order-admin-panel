@@ -1,10 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import OrderTable from '@/components/OrderTable'
-import { Order, Summary } from '@/types'
+import { Order } from '@/types'
+import { cookies } from 'next/headers'
 
 async function getOrders(): Promise<Order[]> {
-  // Corrected: createClient() is called with no arguments.
-  const supabase = createClient()
+  // Corrected: createClient() is called with the cookie store.
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
   const { data, error } = await supabase.from('orders').select('*').order('id', { ascending: false })
   if (error) {
     console.error('Error fetching orders:', error)
@@ -13,25 +15,43 @@ async function getOrders(): Promise<Order[]> {
   return data || []
 }
 
-async function getSummary(): Promise<Summary> {
-  // Corrected: createClient() is called with no arguments.
-  const supabase = createClient()
-  const { data, error } = await supabase
+async function getSummary() {
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
+
+  const { data: summary, error } = await supabase
     .from('orders')
-    .select('status, charge')
+    .select('status, amount')
 
   if (error) {
     console.error('Error fetching summary:', error)
-    return { total_orders: 0, total_charge: 0, processing_orders: 0, completed_orders: 0 }
+    return {
+      pending: { count: 0, total: 0 },
+      processing: { count: 0, total: 0 },
+      completed: { count: 0, total: 0 },
+      cancelled: { count: 0, total: 0 },
+      error: { count: 0, total: 0 },
+    }
   }
 
-  const summary = {
-    total_orders: data.length,
-    total_charge: data.reduce((acc, order) => acc + (order.charge || 0), 0),
-    processing_orders: data.filter(order => order.status === 'processing' || order.status === 'in_progress' || order.status === 'Pending').length,
-    completed_orders: data.filter(order => order.status === 'completed').length,
+  const initialState = {
+    pending: { count: 0, total: 0 },
+    processing: { count: 0, total: 0 },
+    completed: { count: 0, total: 0 },
+    cancelled: { count: 0, total: 0 },
+    error: { count: 0, total: 0 },
   }
-  return summary
+
+  const summaryData = summary.reduce((acc, order) => {
+    const status = order.status.toLowerCase();
+    if (acc[status as keyof typeof acc]) {
+      acc[status as keyof typeof acc].count += 1
+      acc[status as keyof typeof acc].total += order.amount
+    }
+    return acc
+  }, initialState)
+
+  return summaryData
 }
 
 
@@ -41,26 +61,18 @@ export default async function DashboardPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-gray-500">Total Orders</h2>
-          <p className="text-2xl font-semibold">{summary.total_orders}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-gray-500">Total Charge</h2>
-          <p className="text-2xl font-semibold">${summary.total_charge.toFixed(2)}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-gray-500">Processing</h2>
-          <p className="text-2xl font-semibold">{summary.processing_orders}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-gray-500">Completed</h2>
-          <p className="text-2xl font-semibold">{summary.completed_orders}</p>
-        </div>
+      <h1 className="text-2xl font-bold mb-4">Order Management Dashboard</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        {Object.entries(summary).map(([status, data]) => (
+          <div key={status} className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-semibold capitalize">{status}</h2>
+            <p className="text-2xl font-bold">{data.count}</p>
+            <p className="text-gray-500">Total: ${data.total.toFixed(2)}</p>
+          </div>
+        ))}
       </div>
-      {/* --- FIX: Changed prop name from initialOrders to orders --- */}
+
       <OrderTable orders={orders} />
     </div>
   )
