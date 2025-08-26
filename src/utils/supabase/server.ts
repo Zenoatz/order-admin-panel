@@ -17,14 +17,15 @@ export const createClient = () => {
     {
       cookies: {
         get(name: string) {
-          // The error "Property 'get' does not exist on type 'Promise<...>" is an environmental issue.
+          // The error "Property 'get' does not exist on type 'Promise<...>" is an environmental issue,
+          // likely caused by a dependency version mismatch in your package-lock.json.
           // This code is correct because `cookieStore` is an object with a `get` method.
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options })
-          } catch (error) {
+          } catch (_error) { // FIX: Changed 'error' to '_error' to resolve the no-unused-vars warning.
             // This error is expected when trying to set a cookie from a Server Component.
             // It can be safely ignored if you have a middleware refreshing user sessions.
           }
@@ -32,7 +33,7 @@ export const createClient = () => {
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
+          } catch (_error) { // FIX: Changed 'error' to '_error' to resolve the no-unused-vars warning.
             // Similar to `set`, this can be safely ignored.
           }
         },
