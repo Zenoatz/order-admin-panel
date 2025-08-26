@@ -1,45 +1,25 @@
 import { createClient } from '@/utils/supabase/server'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const month = searchParams.get('month') // e.g., '8' for August
-  const year = searchParams.get('year') // e.g., '2024'
-
-  if (!month || !year) {
-    return NextResponse.json(
-      { error: 'Month and year are required' },
-      { status: 400 }
-    )
-  }
-
-  const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
-  const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
-
-  const cookieStore = await cookies() // <--- แก้ไขโดยการเพิ่ม await
-  const supabase = createClient(cookieStore)
+export async function GET() {
+  // The createClient function now requires no arguments.
+  // It handles cookies internally.
+  const supabase = createClient()
 
   const { data, error } = await supabase
     .from('orders')
-    .select('charge, cost, profit')
-    .gte('created_at', startDate.toISOString())
-    .lte('created_at', endDate.toISOString())
+    .select('status, charge')
 
   if (error) {
-    console.error('Error fetching summary:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const summary = data.reduce(
-    (acc, order) => {
-      acc.totalSales += order.charge || 0
-      acc.totalCost += order.cost || 0
-      acc.totalProfit += order.profit || 0
-      return acc
-    },
-    { totalSales: 0, totalCost: 0, totalProfit: 0 }
-  )
+  const summary = {
+    total_orders: data.length,
+    total_charge: data.reduce((acc, order) => acc + (order.charge || 0), 0),
+    processing_orders: data.filter(order => order.status === 'processing' || order.status === 'in_progress' || order.status === 'Pending').length,
+    completed_orders: data.filter(order => order.status === 'completed').length,
+  }
 
   return NextResponse.json(summary)
 }
