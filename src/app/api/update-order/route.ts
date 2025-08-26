@@ -4,17 +4,18 @@ import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies();
+  // ✅ แก้ไข: เพิ่ม await เพื่อรอให้ Promise ของ cookieStore ทำงานเสร็จสิ้น
+  // ซึ่งจะแก้ปัญหา Property 'get' and 'set' does not exist on type 'Promise<...>'
+  const cookieStore = await cookies()
 
-  // ✅ แก้ไข: สร้าง Supabase client โดยตรงในไฟล์นี้
-  // เพื่อหลีกเลี่ยงปัญหา Type-checking ที่เกิดขึ้นใน Environment ของคุณ
+  // สร้าง Supabase client โดยตรงในไฟล์นี้
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value;
+          return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
