@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   try {
     // --- 1. อัปเดต Supabase ---
     const cookieStore = cookies();
-    // @ts-expect-error - Supabase client creation type mismatch in some environments
+    // @ts-expect-error - Supabase client creation type mismatch in some environments.
     const supabase = createClient(cookieStore);
 
     // แก้ไข: กำหนด type ที่ชัดเจนเพื่อหลีกเลี่ยงการใช้ 'any'
