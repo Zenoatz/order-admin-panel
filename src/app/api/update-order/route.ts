@@ -1,54 +1,97 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { Order } from '@/types';
+
+const PERMJAI_API_URL = "https://permjai.com/adminapi/v2/orders/status";
+
+async function updatePermjai(orderData: { id: number; status?: string; start_count?: number; remains?: number }) {
+  const permjaiApiKey = process.env.PERMJAI_API_KEY;
+  if (!permjaiApiKey) {
+    throw new Error('Permjai API key is not configured');
+  }
+
+  const payload: { order_id: number; status?: string; start_count?: number; remains?: number } = {
+    order_id: orderData.id,
+  };
+
+  // ส่งข้อมูลเฉพาะที่มีการเปลี่ยนแปลงและ Permjai API รองรับ
+  if (orderData.start_count !== undefined) payload.start_count = orderData.start_count;
+  if (orderData.remains !== undefined) payload.remains = orderData.remains;
+  
+  // แปลง status ที่รองรับเป็นตัวพิมพ์เล็ก
+  const validStatuses = ['Completed', 'Partial', 'Canceled'];
+  if (orderData.status && validStatuses.includes(orderData.status)) {
+    payload.status = orderData.status.toLowerCase();
+  }
+
+  // ไม่ต้องส่งถ้าไม่มีอะไรให้อัปเดต (นอกจาก order_id)
+  if (Object.keys(payload).length <= 1) {
+      console.log("No data to update on Permjai for order:", orderData.id);
+      return;
+  }
+
+  console.log('Sending update to Permjai:', payload);
+  
+  const response = await fetch(PERMJAI_API_URL, {
+    method: 'POST',
+    headers: {
+      'X-Api-Key': permjaiApiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData = await response.json();
+
+  if (!response.ok || responseData.error_code !== 0) {
+    console.error('Permjai API Error:', responseData);
+    throw new Error(responseData.error_message || 'Failed to update order on Permjai');
+  }
+  console.log('Successfully updated order on Permjai:', responseData);
+}
+
 
 export async function POST(request: Request) {
+  const body = await request.json();
+  const { id, status, start_count, remains } = body;
+
+  if (!id) {
+    return new NextResponse(JSON.stringify({ message: 'Order ID is required' }), { status: 400 });
+  }
+
   try {
-    const { id, status, start_count, remains, service_name } = await request.json()
+    // --- 1. อัปเดต Supabase ---
+    const cookieStore = cookies();
+    // @ts-expect-error
+    const supabase = createClient(cookieStore);
 
-    if (!id) {
-      return new NextResponse(JSON.stringify({ message: 'Order ID is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
-    }
-
-    const cookieStore = cookies()
-    
-    // @ts-expect-error - We use this comment to tell TypeScript to ignore the type check
-    // because of a misinterpretation of the cookies() return type in some environments.
-    const supabase = createClient(cookieStore)
-
-    // Define a clearer type to avoid using 'any'
-    const dataToUpdate: { 
-      status?: Order['status']; 
-      start_count?: number | null; 
-      remains?: number | null;
-      service_name?: string | null; // Added service_name
-    } = {}
-
-    if (status) dataToUpdate.status = status
-    if (start_count !== undefined) dataToUpdate.start_count = start_count
-    if (remains !== undefined) dataToUpdate.remains = remains
-    if (service_name) dataToUpdate.service_name = service_name // Added logic to update service_name
+    const dataToUpdate: { [key: string]: any } = {};
+    if (status) dataToUpdate.status = status;
+    if (start_count !== undefined) dataToUpdate.start_count = start_count;
+    if (remains !== undefined) dataToUpdate.remains = remains;
 
     if (Object.keys(dataToUpdate).length === 0) {
-        return new NextResponse(JSON.stringify({ message: 'No fields to update' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+      return new NextResponse(JSON.stringify({ message: 'No fields to update' }), { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data: supabaseData, error: supabaseError } = await supabase
       .from('orders')
       .update(dataToUpdate)
       .eq('id', id)
-      .select() // IMPORTANT: Returns the updated record
+      .select();
 
-    if (error) {
-      console.error('Supabase error:', error)
-      return new NextResponse(JSON.stringify({ message: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    if (supabaseError) {
+      throw new Error(supabaseError.message);
     }
 
-    return NextResponse.json(data)
-  } catch (e: unknown) { // Use 'unknown' for better type safety
-    console.error('API Route Error:', e);
+    // --- 2. อัปเดต Permjai ---
+    await updatePermjai({ id, status, start_count, remains });
+
+    return NextResponse.json(supabaseData);
+
+  } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'An internal server error occurred';
-    return new NextResponse(JSON.stringify({ message: errorMessage }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    console.error('API Route Error:', errorMessage);
+    return new NextResponse(JSON.stringify({ message: errorMessage }), { status: 500 });
   }
 }
