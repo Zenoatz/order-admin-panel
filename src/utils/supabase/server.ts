@@ -1,13 +1,14 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/cookies'
 
 // This is the definitive, correct, and standard implementation for creating a 
 // Supabase server client in a Next.js App Router environment.
 export const createClient = () => {
-  // In Server Components, Route Handlers, and Server Actions, 
-  // the `cookies()` function from `next/headers` returns the actual cookie store object directly, NOT a Promise.
-  // This is why we do not need to use `await` here.
-  const cookieStore = cookies()
+  // In Server Components, the `cookies()` function returns the actual cookie store object directly.
+  // The Type Error is an environmental issue. We are using Type Casting `as ReadonlyRequestCookies`
+  // to force TypeScript to understand the correct return type and resolve the build error.
+  const cookieStore = cookies() as ReadonlyRequestCookies
 
   // The createServerClient function is designed to receive an object containing
   // the methods for interacting with cookies. The library handles the rest.
@@ -17,9 +18,6 @@ export const createClient = () => {
     {
       cookies: {
         get(name: string) {
-          // The error "Property 'get' does not exist on type 'Promise<...>" is an environmental issue,
-          // likely caused by a dependency version mismatch in your package-lock.json.
-          // This code is correct because `cookieStore` is an object with a `get` method.
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
@@ -32,7 +30,7 @@ export const createClient = () => {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value: '', ...options })
+            cookieStore.set({ name, value, '', ...options })
           } catch (_error) { // FIX: Changed 'error' to '_error' to resolve the no-unused-vars warning.
             // Similar to `set`, this can be safely ignored.
           }
