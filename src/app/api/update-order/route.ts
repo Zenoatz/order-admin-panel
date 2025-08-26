@@ -1,22 +1,10 @@
-import { createClient } from '@/utils/supabase/server'
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { createClient as createUpdateClient } from '@/utils/supabase/server' // Renamed
+import { NextResponse as NextResponseUpdate } from 'next/server' // Renamed
 
-export async function POST(request: Request) {
+export async function POST_UPDATE_ORDER(request: Request) { // Renamed
   const { id, status } = await request.json()
-
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', id)
-    .select()
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ data })
+  const supabase = createUpdateClient()
+  const { data, error } = await supabase.from('orders').update({ status }).eq('id', id).select()
+  if (error) { return NextResponseUpdate.json({ error: error.message }, { status: 500 }) }
+  return NextResponseUpdate.json({ data })
 }
