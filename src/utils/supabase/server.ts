@@ -14,7 +14,7 @@ export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options })
-          } catch (_error) {
+          } catch (_) { // Corrected: Use '_' to suppress the unused variable warning.
             // The `set` method is used by the Supabase Auth Helper for Next.js.
             // If this `set` method is called in a Server Component, an error is thrown,
             // as cookies can't be set from there.
@@ -24,9 +24,8 @@ export const createClient = (cookieStore: ReturnType<typeof cookies>) => {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            // This is the corrected line:
             cookieStore.set({ name, value: '', ...options })
-          } catch (_error) {
+          } catch (_) { // Corrected: Use '_' to suppress the unused variable warning.
             // Similar to `set`, this can be safely ignored.
           }
         },

@@ -1,19 +1,16 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
-  const { id, note, remains } = await request.json()
+  const { id, permjai_status } = await request.json()
 
-  if (!id) {
-    return NextResponse.json({ error: 'Order ID is required' }, { status: 400 })
-  }
-
-  // Corrected: createClient() is called with no arguments.
-  const supabase = createClient()
+  const cookieStore = cookies()
+  const supabase = createClient(cookieStore)
 
   const { data, error } = await supabase
     .from('orders')
-    .update({ note, remains })
+    .update({ permjai_status })
     .eq('id', id)
     .select()
 
@@ -21,5 +18,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json({ data })
 }
