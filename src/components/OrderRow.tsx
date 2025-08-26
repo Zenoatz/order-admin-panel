@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import { Order } from '@/types';
 
-// ปรับปรุงฟังก์ชัน debounce ให้เป็นแบบ Generic เพื่อแก้ไข ESLint error
-// และทำให้ type-safe มากขึ้น
-const debounce = <F extends (...args: any[]) => void>(func: F, delay: number) => {
+// [แก้ไข] ปรับปรุงฟังก์ชัน debounce ให้ใช้ unknown[] แทน any[] เพื่อให้ผ่าน ESLint
+const debounce = <F extends (...args: unknown[]) => void>(func: F, delay: number) => {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<F>) => {
     clearTimeout(timeout);
@@ -43,10 +42,10 @@ export default function OrderRow({ order: initialOrder }: { order: Order }) {
       if (!response.ok) {
         throw new Error('Failed to update order');
       }
-      // อัปเดต state ด้วยข้อมูลใหม่หลังจากบันทึกสำเร็จ
-      setOrder(prevOrder => ({ ...prevOrder, ...updatedFields }));
+      // ไม่ต้อง setOrder ที่นี่อีก เพราะ state ถูกอัปเดตแบบ optimistic ใน handleChange แล้ว
     } catch (error) {
       console.error(error);
+      // หาก error ควร revert state กลับไปเป็นค่าเดิม (optional)
     } finally {
       setTimeout(() => setIsSaving(false), 500);
     }
@@ -54,7 +53,7 @@ export default function OrderRow({ order: initialOrder }: { order: Order }) {
   
   const debouncedUpdate = debounce(handleUpdate, 1000);
 
-  // [แก้ไข] แก้ไข handleChange ให้จัดการ Type ของตัวเลขได้ถูกต้อง
+  // แก้ไข handleChange ให้จัดการ Type ของตัวเลขได้ถูกต้อง
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
@@ -69,7 +68,7 @@ export default function OrderRow({ order: initialOrder }: { order: Order }) {
 
     const updatePayload = { [name]: processedValue };
 
-    // อัปเดต state ในหน้าจอทันทีเพื่อให้ผู้ใช้เห็นการเปลี่ยนแปลง
+    // อัปเดต state ในหน้าจอทันทีเพื่อให้ผู้ใช้เห็นการเปลี่ยนแปลง (Optimistic Update)
     setOrder(prevOrder => ({ ...prevOrder, ...updatePayload }));
     
     // เรียกใช้ฟังก์ชันบันทึกข้อมูลแบบหน่วงเวลา
@@ -112,7 +111,7 @@ export default function OrderRow({ order: initialOrder }: { order: Order }) {
         <input
           type="number"
           name="start_count"
-          // [แก้ไข] ใช้ ?? '' เพื่อให้แสดงค่า 0 ได้อย่างถูกต้อง
+          // ใช้ ?? '' เพื่อให้แสดงค่า 0 ได้อย่างถูกต้อง และจัดการค่า null
           value={order.start_count ?? ''}
           onChange={handleChange}
           className="w-full p-1 border rounded"
@@ -125,7 +124,7 @@ export default function OrderRow({ order: initialOrder }: { order: Order }) {
           type="number"
           step="0.01"
           name="cost"
-          // [แก้ไข] ใช้ ?? '' เพื่อให้แสดงค่า 0 ได้อย่างถูกต้อง
+          // ใช้ ?? '' เพื่อให้แสดงค่า 0 ได้อย่างถูกต้อง และจัดการค่า null
           value={order.cost ?? ''}
           onChange={handleChange}
           className="w-full p-1 border rounded"
